@@ -1,0 +1,21 @@
+# Private — never commit
+CLAUDE.md
+.claude/
+
+# Node
+node_modules/
+dist/
+
+# Rust / Cargo
+src-tauri/target/
+
+# Tauri build output
+src-tauri/gen/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
