@@ -85,7 +85,7 @@
 
 .dark {
     /* Querylane dark palette — zinc-based, no accent color */
-    --background: oklch(0.085 0 0);         /* #0E0E10 — near-black */
+    --background: oklch(0.13 0 0);          /* #1A1A1D — dark but not black */
     --foreground: oklch(0.91 0 0);          /* #E4E4E7 — zinc-200 */
     --card: oklch(0.13 0 0);                /* #18181B — zinc-900, sidebar/panels */
     --card-foreground: oklch(0.91 0 0);

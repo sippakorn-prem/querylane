@@ -19,7 +19,7 @@ export function EmptyState({ onAddConnection }: EmptyStateProps) {
         </p>
       </div>
 
-      <Button onClick={onAddConnection}>
+      <Button size="lg" onClick={onAddConnection}>
         <Plus />
         Add connection
       </Button>
