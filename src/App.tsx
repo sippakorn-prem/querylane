@@ -3,9 +3,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { getCurrentWebview } from "@tauri-apps/api/webview"
 import { Settings } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
+import { ConnectionList } from "@/components/connection-list"
+import { ConnectionPanel } from "@/components/connection-panel"
 import { SettingsModal } from "@/components/settings-modal"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "@/store/settings"
+import { useConnectionsStore } from "@/store/connections"
+import type { ConnectionConfig } from "@/lib/connections"
 
 const ZOOM_STEP = 0.1
 const ZOOM_MIN = 1.0
@@ -17,7 +21,12 @@ function clampZoom(value: number) {
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { zoom, setZoom } = useSettingsStore()
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [editingConnection, setEditingConnection] = useState<ConnectionConfig | undefined>()
+  const { zoom } = useSettingsStore()
+  const { connections, isLoading, load } = useConnectionsStore()
+
+  useEffect(() => { load() }, [])
 
   useEffect(() => {
     getCurrentWebview().setZoom(zoom)
@@ -43,10 +52,25 @@ export default function App() {
   }, [])
 
   function handleHeaderMouseDown(e: React.MouseEvent) {
-    if (e.button === 0) {
-      getCurrentWindow().startDragging()
-    }
+    if (e.button === 0) getCurrentWindow().startDragging()
   }
+
+  function openAdd() {
+    setEditingConnection(undefined)
+    setPanelOpen(true)
+  }
+
+  function openEdit(conn: ConnectionConfig) {
+    setEditingConnection(conn)
+    setPanelOpen(true)
+  }
+
+  function handleConnect(conn: ConnectionConfig) {
+    // TODO: open main workspace
+    console.log("connect", conn.id)
+  }
+
+  const showEmpty = !isLoading && connections.length === 0
 
   return (
     <div className="dark flex h-screen flex-col bg-background text-foreground">
@@ -65,8 +89,26 @@ export default function App() {
         </Button>
       </header>
 
-      <main className="flex flex-1 items-center justify-center">
-        <EmptyState />
+      <main className="flex flex-1 overflow-hidden">
+        {showEmpty ? (
+          <div className="flex flex-1 items-center justify-center">
+            <EmptyState onAddConnection={openAdd} />
+          </div>
+        ) : (
+          <ConnectionList
+            connections={connections}
+            onAdd={openAdd}
+            onEdit={openEdit}
+            onConnect={handleConnect}
+          />
+        )}
+
+        {panelOpen && (
+          <ConnectionPanel
+            editing={editingConnection}
+            onClose={() => setPanelOpen(false)}
+          />
+        )}
       </main>
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
