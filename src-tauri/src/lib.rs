@@ -2,7 +2,8 @@ mod commands;
 mod db;
 
 use commands::connection::{
-    create_connection, delete_connection, get_connections, test_connection, update_connection,
+    create_connection, delete_connection, get_connections, list_databases, test_connection,
+    update_connection,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,6 +16,7 @@ pub fn run() {
             update_connection,
             delete_connection,
             test_connection,
+            list_databases,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

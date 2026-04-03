@@ -1,13 +1,18 @@
-import { useState } from "react"
-import { X, Loader2 } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { X, Loader2, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { connectionsApi, type ConnectionConfig, type Environment } from "@/lib/connections"
+import { connectionsApi, type ConnectionConfig, type DbType, type Environment } from "@/lib/connections"
 import { useConnectionsStore } from "@/store/connections"
 
 interface ConnectionPanelProps {
   editing?: ConnectionConfig
   onClose: () => void
 }
+
+const DB_TYPES: { label: string; value: DbType; defaultPort: number }[] = [
+  { label: "PostgreSQL", value: "postgres", defaultPort: 5432 },
+  { label: "MySQL", value: "mysql", defaultPort: 3306 },
+]
 
 const ENV_OPTIONS: { label: string; value: Environment }[] = [
   { label: "Dev", value: "dev" },
@@ -22,11 +27,13 @@ const ENV_COLORS: Record<Environment, string> = {
 }
 
 type TestState = "idle" | "testing" | "ok" | "error"
+type BrowseState = "idle" | "loading" | "error"
 
 export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
   const { add, update } = useConnectionsStore()
 
   const [name, setName] = useState(editing?.name ?? "")
+  const [dbType, setDbType] = useState<DbType>(editing?.db_type ?? "postgres")
   const [host, setHost] = useState(editing?.host ?? "localhost")
   const [port, setPort] = useState(String(editing?.port ?? 5432))
   const [database, setDatabase] = useState(editing?.database ?? "")
@@ -37,11 +44,50 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
   const [testError, setTestError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
+  const [browseState, setBrowseState] = useState<BrowseState>("idle")
+  const [browseError, setBrowseError] = useState("")
+  const [databases, setDatabases] = useState<string[]>([])
+  const [dbDropdownOpen, setDbDropdownOpen] = useState(false)
+  const dbDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dbDropdownOpen) return
+    function handleClick(e: MouseEvent) {
+      if (dbDropdownRef.current && !dbDropdownRef.current.contains(e.target as Node)) {
+        setDbDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [dbDropdownOpen])
+
+  function handleDbTypeChange(type: DbType) {
+    setDbType(type)
+    const defaultPort = DB_TYPES.find((t) => t.value === type)?.defaultPort ?? 5432
+    const currentDefault = DB_TYPES.find((t) => t.value === dbType)?.defaultPort ?? 5432
+    if (port === String(currentDefault)) setPort(String(defaultPort))
+  }
+
+  async function handleBrowse() {
+    setBrowseState("loading")
+    setBrowseError("")
+    setDbDropdownOpen(false)
+    try {
+      const dbs = await connectionsApi.listDatabases({ host, port: Number(port), username, password, db_type: dbType })
+      setDatabases(dbs)
+      setDbDropdownOpen(true)
+      setBrowseState("idle")
+    } catch (err) {
+      setBrowseState("error")
+      setBrowseError(String(err))
+    }
+  }
+
   async function handleTest() {
     setTestState("testing")
     setTestError("")
     try {
-      await connectionsApi.test({ host, port: Number(port), database, username, password })
+      await connectionsApi.test({ host, port: Number(port), database, username, password, db_type: dbType })
       setTestState("ok")
     } catch (err) {
       setTestState("error")
@@ -55,13 +101,13 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
       if (editing) {
         const updated: ConnectionConfig = {
           ...editing,
-          name, host, port: Number(port), database, username, password, environment,
+          name, db_type: dbType, host, port: Number(port), database, username, password, environment,
         }
         await connectionsApi.update(updated)
         update(updated)
       } else {
         const created = await connectionsApi.create({
-          name, host, port: Number(port), database, username, password, environment,
+          name, db_type: dbType, host, port: Number(port), database, username, password, environment,
         })
         add(created)
       }
@@ -73,10 +119,11 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
     }
   }
 
-  const isValid = name && host && port && database && username
+  const isValid = name && host && port && username
+  const canBrowse = host && port && username && password
 
   return (
-    <div className="flex w-72 shrink-0 flex-col border-l border-border bg-card">
+    <div className="animate-in slide-in-from-right-4 fade-in-0 duration-200 ease-out flex w-72 shrink-0 flex-col border-l border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-medium text-foreground">
           {editing ? "Edit connection" : "New connection"}
@@ -91,6 +138,24 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
           <Input value={name} onChange={setName} placeholder="My local DB" />
         </Field>
 
+        <Field label="Database type">
+          <div className="flex gap-1.5">
+            {DB_TYPES.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleDbTypeChange(opt.value)}
+                className={`cursor-pointer rounded-md border px-3 py-1 text-xs font-medium transition-colors select-none ${
+                  dbType === opt.value
+                    ? "border-ring text-foreground bg-muted"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
         <Field label="Host">
           <Input value={host} onChange={setHost} placeholder="localhost" />
         </Field>
@@ -100,12 +165,53 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
             <Input value={port} onChange={setPort} placeholder="5432" type="number" />
           </Field>
           <Field label="Database" className="flex-1">
-            <Input value={database} onChange={setDatabase} placeholder="mydb" />
+            <div className="relative" ref={dbDropdownRef}>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={database}
+                  onChange={(e) => setDatabase(e.target.value)}
+                  placeholder="optional"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+                />
+                <button
+                  onClick={handleBrowse}
+                  disabled={!canBrowse || browseState === "loading"}
+                  title="Browse available databases"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                >
+                  {browseState === "loading"
+                    ? <Loader2 className="size-3.5 animate-spin" />
+                    : <Database className="size-3.5" />
+                  }
+                </button>
+              </div>
+
+              {dbDropdownOpen && databases.length > 0 && (
+                <div className="animate-in fade-in-0 zoom-in-95 duration-100 ease-out absolute top-full left-0 z-20 mt-1 w-full rounded-md border border-border bg-card shadow-lg">
+                  <ul className="max-h-40 overflow-y-auto py-1">
+                    {databases.map((db) => (
+                      <li key={db}>
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                          onClick={() => { setDatabase(db); setDbDropdownOpen(false) }}
+                        >
+                          {db}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            {browseState === "error" && (
+              <p className="mt-1 text-xs text-red-400">{browseError}</p>
+            )}
           </Field>
         </div>
 
         <Field label="Username">
-          <Input value={username} onChange={setUsername} placeholder="postgres" />
+          <Input value={username} onChange={setUsername} placeholder={dbType === "postgres" ? "postgres" : "root"} />
         </Field>
 
         <Field label="Password">
@@ -131,10 +237,10 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
         </Field>
 
         {testState === "error" && (
-          <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{testError}</p>
+          <p className="animate-in fade-in-0 slide-in-from-top-1 duration-200 rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{testError}</p>
         )}
         {testState === "ok" && (
-          <p className="rounded-md bg-green-500/10 px-3 py-2 text-xs text-green-500">
+          <p className="animate-in fade-in-0 slide-in-from-top-1 duration-200 rounded-md bg-green-500/10 px-3 py-2 text-xs text-green-500">
             Connection successful
           </p>
         )}

@@ -9,7 +9,7 @@ import { SettingsModal } from "@/components/settings-modal"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "@/store/settings"
 import { useConnectionsStore } from "@/store/connections"
-import type { ConnectionConfig } from "@/lib/connections"
+import { connectionsApi, type ConnectionConfig } from "@/lib/connections"
 
 const ZOOM_STEP = 0.1
 const ZOOM_MIN = 1.0
@@ -24,7 +24,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | undefined>()
   const { zoom } = useSettingsStore()
-  const { connections, isLoading, load } = useConnectionsStore()
+  const { connections, isLoading, load, remove } = useConnectionsStore()
 
   useEffect(() => { load() }, [])
 
@@ -65,6 +65,11 @@ export default function App() {
     setPanelOpen(true)
   }
 
+  async function handleDelete(id: string) {
+    await connectionsApi.delete(id)
+    remove(id)
+  }
+
   function handleConnect(conn: ConnectionConfig) {
     // TODO: open main workspace
     console.log("connect", conn.id)
@@ -99,6 +104,7 @@ export default function App() {
             connections={connections}
             onAdd={openAdd}
             onEdit={openEdit}
+            onDelete={handleDelete}
             onConnect={handleConnect}
           />
         )}

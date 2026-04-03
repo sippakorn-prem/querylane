@@ -104,13 +104,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="animate-in fade-in-0 duration-200 fixed inset-0 z-50 flex items-center justify-center"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-background/60" />
 
       <div
-        className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-card"
+        className="animate-in fade-in-0 zoom-in-95 duration-200 ease-out relative z-10 w-full max-w-sm rounded-xl border border-border bg-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">

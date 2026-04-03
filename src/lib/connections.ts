@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core"
 
+export type DbType = "postgres" | "mysql"
 export type Environment = "dev" | "staging" | "prod"
 
 export interface ConnectionConfig {
   id: string
   name: string
+  db_type: DbType
   host: string
   port: number
   database: string
@@ -26,6 +28,9 @@ export const connectionsApi = {
   delete: (id: string) =>
     invoke<void>("delete_connection", { id }),
 
-  test: (params: Pick<ConnectionConfig, "host" | "port" | "database" | "username" | "password">) =>
+  test: (params: Pick<ConnectionConfig, "host" | "port" | "database" | "username" | "password" | "db_type">) =>
     invoke<void>("test_connection", params),
+
+  listDatabases: (params: Pick<ConnectionConfig, "host" | "port" | "username" | "password" | "db_type">) =>
+    invoke<string[]>("list_databases", params),
 }

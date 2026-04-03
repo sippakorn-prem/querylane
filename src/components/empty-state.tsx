@@ -7,7 +7,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ onAddConnection }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center gap-5 text-center">
+    <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-400 ease-out flex flex-col items-center gap-5 text-center">
       <div className="flex size-12 items-center justify-center rounded-xl border border-border bg-card">
         <Database className="size-5 text-muted-foreground" />
       </div>
