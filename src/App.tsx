@@ -25,6 +25,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | undefined>()
   const [activeConnection, setActiveConnection] = useState<ConnectionConfig | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [systemDark, setSystemDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches
   )
@@ -36,6 +37,16 @@ export default function App() {
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
     mq.addEventListener("change", handler)
     return () => mq.removeEventListener("change", handler)
+  }, [])
+
+  useEffect(() => {
+    const win = getCurrentWindow()
+    win.isFullscreen().then(setIsFullscreen)
+    let unlisten: (() => void) | undefined
+    win.listen("tauri://resize", () => {
+      win.isFullscreen().then(setIsFullscreen)
+    }).then((fn) => { unlisten = fn })
+    return () => { unlisten?.() }
   }, [])
 
   const isDark = theme === "dark" || (theme === "system" && systemDark)
@@ -93,11 +104,18 @@ export default function App() {
 
   return (
     <div className={`${isDark ? "dark" : ""} flex h-screen flex-col bg-background text-foreground`}>
+      {/* Layer 1 — macOS traffic lights zone (drag region only, no content) */}
+      {!isFullscreen && (
+        <div className="h-8 shrink-0 bg-card" onMouseDown={handleHeaderMouseDown} />
+      )}
+
+      {/* Layer 2 — app header */}
       <header
-        className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-20 pr-4"
+        className="relative flex h-11 shrink-0 items-center border-b border-border bg-card px-4 shadow-sm dark:shadow-none"
         onMouseDown={handleHeaderMouseDown}
       >
-        {activeConnection ? (
+        {/* Left — back button when in workspace */}
+        {activeConnection && (
           <div className="flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon-sm" onClick={() => setActiveConnection(null)}>
               <ArrowLeft className="text-muted-foreground" />
@@ -105,17 +123,21 @@ export default function App() {
             <span className="select-none text-sm font-medium text-foreground">{activeConnection.name}</span>
             <EnvBadge env={activeConnection.environment} />
           </div>
-        ) : (
-          <span className="select-none text-sm font-medium text-foreground">Querylane</span>
         )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => setSettingsOpen(true)}
-        >
-          <Settings className="text-muted-foreground" />
-        </Button>
+
+        {/* Center — truly centered in the full window width */}
+        {!activeConnection && (
+          <span className="pointer-events-none absolute left-0 right-0 text-center text-sm font-medium text-foreground select-none">
+            Querylane
+          </span>
+        )}
+
+        {/* Right — settings pinned to the right */}
+        <div className="ml-auto" onMouseDown={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(true)}>
+            <Settings className="text-muted-foreground" />
+          </Button>
+        </div>
       </header>
 
       <main className="flex flex-1 overflow-hidden">
@@ -124,7 +146,7 @@ export default function App() {
         ) : (
           <>
             {showEmpty ? (
-              <div className="flex flex-1 items-center justify-center">
+              <div className="bg-grid flex flex-1 items-center justify-center">
                 <EmptyState onAddConnection={openAdd} />
               </div>
             ) : (

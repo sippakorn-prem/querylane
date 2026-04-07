@@ -73,6 +73,18 @@ type BrowseState = "idle" | "loading" | "error"
 export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
   const { add, update } = useConnectionsStore()
 
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 300)
+  }
+
   const [name, setName] = useState(editing?.name ?? "")
   const [dbType, setDbType] = useState<DbType>(editing?.db_type ?? "postgres")
   const [host, setHost] = useState(editing?.host ?? "localhost")
@@ -152,7 +164,7 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
         })
         add(created)
       }
-      onClose()
+      handleClose()
     } catch (err) {
       console.error(err)
     } finally {
@@ -165,12 +177,19 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
   const canBrowse = host && port && username && password
 
   return (
-    <div className="animate-in slide-in-from-right-4 fade-in-0 duration-200 ease-out relative flex w-72 shrink-0 flex-col border-l border-border bg-card">
+    <div
+      className="relative flex w-72 shrink-0 flex-col border-l border-border bg-card shadow-xl dark:shadow-black/30"
+      style={{
+        transform: visible ? "translateX(0)" : "translateX(100%)",
+        opacity: visible ? 1 : 0,
+        transition: "transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms ease-out",
+      }}
+    >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-medium text-foreground">
           {editing ? "Edit connection" : "New connection"}
         </span>
-        <Button variant="ghost" size="icon-sm" onClick={onClose}>
+        <Button variant="ghost" size="icon-sm" onClick={handleClose}>
           <X className="text-muted-foreground" />
         </Button>
       </div>
@@ -247,13 +266,13 @@ export function ConnectionPanel({ editing, onClose }: ConnectionPanelProps) {
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
                   placeholder="optional"
-                  className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors"
                 />
                 <button
                   onClick={handleBrowse}
                   disabled={!canBrowse || browseState === "loading"}
                   title="Browse available databases"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                 >
                   {browseState === "loading"
                     ? <Loader2 className="size-3.5 animate-spin" />
@@ -356,7 +375,7 @@ interface FieldProps {
 function Field({ label, children, className }: FieldProps) {
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
-      <label className="text-xs text-muted-foreground">{label}</label>
+      <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</label>
       {children}
     </div>
   )
@@ -376,7 +395,7 @@ function Input({ value, onChange, placeholder, type = "text" }: InputProps) {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="h-8 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+      className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors"
     />
   )
 }

@@ -19,9 +19,9 @@ export function Workspace({ connection }: Props) {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Schema sidebar */}
-      <div className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-border">
-        <div className="border-b border-border px-3 py-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Schema</p>
+      <div className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">{connection.name}</p>
         </div>
         <SchemaSidebar connection={connection} onTableSelect={handleTableSelect} />
       </div>
@@ -29,9 +29,10 @@ export function Workspace({ connection }: Props) {
       {/* Query + results */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {activeDatabase && (
-          <div className="flex items-center gap-2 border-b border-border px-4 py-1.5">
-            <span className="text-xs text-muted-foreground">Database:</span>
-            <span className="text-xs font-medium text-foreground">{activeDatabase}</span>
+          <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-4 py-1">
+            <span className="text-[11px] text-muted-foreground">db</span>
+            <span className="text-[11px] text-muted-foreground">/</span>
+            <span className="text-[11px] font-medium text-foreground">{activeDatabase}</span>
           </div>
         )}
         <QueryEditor

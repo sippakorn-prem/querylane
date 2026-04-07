@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { connectionsApi, type ConnectionConfig, type QueryResult } from "@/lib/connections"
 import { detectDestructive, type DestructiveWarning } from "@/lib/query-safety"
+import { useSettingsStore } from "@/store/settings"
 
-// ── CodeMirror theme matching Querylane dark palette ──────────────────────────
-const querylaneTheme = createTheme({
+// ── CodeMirror themes ─────────────────────────────────────────────────────────
+const querylaneDarkTheme = createTheme({
   theme: "dark",
   settings: {
     background: "#0d1117",
@@ -39,6 +40,35 @@ const querylaneTheme = createTheme({
     { tag: t.special(t.variableName), color: "#e06c75" },
     { tag: t.punctuation,            color: "#868e96" },
     { tag: t.bracket,                color: "#868e96" },
+  ],
+})
+
+const querylaneLightTheme = createTheme({
+  theme: "light",
+  settings: {
+    background: "transparent",
+    foreground: "#1f2328",
+    caret: "#0550ae",
+    selection: "#0550ae22",
+    selectionMatch: "#0550ae10",
+    lineHighlight: "#00000005",
+    gutterBackground: "transparent",
+    gutterForeground: "#8c959f",
+  },
+  styles: [
+    { tag: t.keyword,                color: "#0550ae", fontWeight: "500" },
+    { tag: t.operator,               color: "#0550ae" },
+    { tag: t.string,                 color: "#116329" },
+    { tag: t.number,                 color: "#953800" },
+    { tag: t.bool,                   color: "#953800" },
+    { tag: t.null,                   color: "#8c959f", fontStyle: "italic" },
+    { tag: t.comment,                color: "#6e7781", fontStyle: "italic" },
+    { tag: t.name,                   color: "#1f2328" },
+    { tag: t.typeName,               color: "#8250df" },
+    { tag: t.variableName,           color: "#1f2328" },
+    { tag: t.special(t.variableName), color: "#cf222e" },
+    { tag: t.punctuation,            color: "#6e7781" },
+    { tag: t.bracket,                color: "#6e7781" },
   ],
 })
 
@@ -76,6 +106,17 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const dialect = connection.db_type === "mysql" ? "mysql" : "postgresql"
   const sqlDialect = connection.db_type === "mysql" ? MySQL : PostgreSQL
+
+  const { theme } = useSettingsStore()
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches)
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+  const isDark = theme === "dark" || (theme === "system" && systemDark)
+  const editorTheme = isDark ? querylaneDarkTheme : querylaneLightTheme
 
   // Compartment lets us reconfigure the sql() extension after the editor mounts
   const sqlCompartment = useRef(new Compartment())
@@ -194,12 +235,12 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Editor */}
-      <div className="flex flex-col border-b border-border" style={{ height: "35%" }}>
+      <div className="flex flex-col border-b border-border bg-card" style={{ height: "35%" }}>
         <CodeMirror
           value={query}
           onChange={onQueryChange}
           onCreateEditor={(view) => { editorViewRef.current = view }}
-          theme={querylaneTheme}
+          theme={editorTheme}
           extensions={[
             sqlCompartment.current.of(sql({ dialect: sqlDialect, upperCaseKeywords: true })),
             editorKeymaps,
@@ -221,7 +262,7 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
         />
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3 border-t border-border px-4 py-2">
+        <div className="flex items-center gap-2 border-t border-border bg-card px-4 py-2 shadow-[0_-1px_0_0] shadow-border/40">
           <Button
             size="sm"
             onClick={runQuery}
@@ -234,7 +275,8 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
             }
             Run
           </Button>
-          <span className="text-xs text-muted-foreground">⌘ Enter</span>
+          <span className="text-[11px] text-muted-foreground/60">⌘ Enter</span>
+          <div className="mx-1 h-3.5 w-px bg-border" />
           <Button
             size="sm"
             variant="ghost"
@@ -247,7 +289,7 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
             Format
           </Button>
           {statusText && (
-            <span className="ml-auto text-xs text-muted-foreground">{statusText}</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">{statusText}</span>
           )}
         </div>
       </div>
@@ -325,7 +367,7 @@ function ResultsTable({ columns, rows, sortCol, sortDir, onSort }: ResultsTableP
         <thead className="sticky top-0 z-10 bg-card">
           <tr className="border-b border-border">
             {/* Row # */}
-            <th className="sticky left-0 z-20 bg-card w-10 px-3 py-2 text-right text-[11px] font-medium text-muted-foreground/40 border-r border-border select-none">
+            <th className="sticky left-0 z-20 bg-muted/30 w-10 px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/40 border-r border-border select-none">
               #
             </th>
             {columns.map((col) => {
@@ -335,11 +377,11 @@ function ResultsTable({ columns, rows, sortCol, sortDir, onSort }: ResultsTableP
                 <th
                   key={col}
                   onClick={() => onSort(col)}
-                  className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap cursor-pointer hover:text-foreground hover:bg-muted/20 select-none transition-colors"
+                  className="bg-muted/30 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap cursor-pointer hover:text-foreground hover:bg-muted/50 select-none transition-colors"
                 >
                   <span className="flex items-center gap-1">
                     {col}
-                    <Icon className={`size-3 shrink-0 ${active ? "text-foreground" : "text-muted-foreground/30"}`} />
+                    <Icon className={`size-3 shrink-0 ${active ? "text-foreground" : "text-muted-foreground/25"}`} />
                   </span>
                 </th>
               )
@@ -355,7 +397,7 @@ function ResultsTable({ columns, rows, sortCol, sortDir, onSort }: ResultsTableP
               }`}
             >
               {/* Row number */}
-              <td className="sticky left-0 bg-[inherit] px-3 py-1.5 text-right font-mono text-[11px] text-muted-foreground/30 border-r border-border/40 select-none tabular-nums">
+              <td className="sticky left-0 bg-background px-3 py-1.5 text-right font-mono text-[10px] text-muted-foreground/30 border-r border-border/40 select-none tabular-nums">
                 {ri + 1}
               </td>
               {row.map((cell, ci) => {

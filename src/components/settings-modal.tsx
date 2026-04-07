@@ -61,7 +61,7 @@ function SegmentedControl<T extends string | number>({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1 mt-5 text-xs font-medium tracking-wider uppercase text-muted-foreground first:mt-0">
+    <p className="mb-2 mt-5 text-[10px] font-semibold tracking-widest uppercase text-muted-foreground first:mt-0">
       {children}
     </p>
   )
@@ -81,10 +81,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       className="animate-in fade-in-0 duration-200 fixed inset-0 z-50 flex items-center justify-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-background/60" />
+      <div className="absolute inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-[2px]" />
 
       <div
-        className="animate-in fade-in-0 zoom-in-95 duration-200 ease-out relative z-10 w-full max-w-sm rounded-xl border border-border bg-card"
+        className="animate-in fade-in-0 zoom-in-95 duration-200 ease-out relative z-10 w-full max-w-xs rounded-xl border border-border bg-card shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
