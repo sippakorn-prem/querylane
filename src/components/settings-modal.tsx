@@ -1,6 +1,7 @@
 import { X } from "lucide-react"
 import { useSettingsStore } from "@/store/settings"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import type { Theme } from "@/store/settings"
 
 interface SettingsModalProps {
@@ -57,33 +58,6 @@ function SegmentedControl<T extends string | number>({
   )
 }
 
-interface ToggleProps {
-  value: boolean
-  onChange: (value: boolean) => void
-}
-
-function Toggle({ value, onChange }: ToggleProps) {
-  return (
-    <button
-      role="switch"
-      aria-checked={value}
-      onClick={() => onChange(!value)}
-      className={`relative h-5 w-9 cursor-pointer rounded-full border transition-colors ${
-        value
-          ? "border-foreground/20 bg-foreground/90"
-          : "border-border bg-muted"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 size-3.5 rounded-full transition-transform ${
-          value
-            ? "translate-x-4 bg-background"
-            : "translate-x-0.5 bg-muted-foreground"
-        }`}
-      />
-    </button>
-  )
-}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -120,7 +94,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </Button>
         </div>
 
-        <div className="px-5 pb-5">
+        <div className="px-5 pb-5 pt-4">
           <SectionLabel>Appearance</SectionLabel>
           <div className="divide-y divide-border">
             <Row label="Theme">
@@ -139,22 +113,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <SectionLabel>Safety</SectionLabel>
           <div className="divide-y divide-border">
             <Row label="Confirm DELETE" description="Prompt before running DELETE queries">
-              <Toggle value={confirmOnDelete} onChange={setConfirmOnDelete} />
+              <Switch checked={confirmOnDelete} onCheckedChange={setConfirmOnDelete} />
             </Row>
             <Row label="Confirm DROP" description="Prompt before running DROP statements">
-              <Toggle value={confirmOnDrop} onChange={setConfirmOnDrop} />
+              <Switch checked={confirmOnDrop} onCheckedChange={setConfirmOnDrop} />
             </Row>
             <Row label="Confirm TRUNCATE" description="Prompt before truncating a table">
-              <Toggle value={confirmOnTruncate} onChange={setConfirmOnTruncate} />
+              <Switch checked={confirmOnTruncate} onCheckedChange={setConfirmOnTruncate} />
             </Row>
             <Row
               label="Confirm UPDATE without WHERE"
               description="Prompt when UPDATE has no WHERE clause"
             >
-              <Toggle
-                value={confirmOnUpdateWithoutWhere}
-                onChange={setConfirmOnUpdateWithoutWhere}
-              />
+              <Switch checked={confirmOnUpdateWithoutWhere} onCheckedChange={setConfirmOnUpdateWithoutWhere} />
             </Row>
           </div>
         </div>

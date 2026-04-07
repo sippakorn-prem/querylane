@@ -15,6 +15,15 @@ export interface ConnectionConfig {
   environment: Environment
 }
 
+export interface QueryResult {
+  columns: string[]
+  rows: (string | number | boolean | null)[][]
+  rows_affected: number
+  duration_ms: number
+}
+
+type ConnParams = Pick<ConnectionConfig, "host" | "port" | "username" | "password" | "db_type">
+
 export const connectionsApi = {
   getAll: () =>
     invoke<ConnectionConfig[]>("get_connections"),
@@ -28,9 +37,15 @@ export const connectionsApi = {
   delete: (id: string) =>
     invoke<void>("delete_connection", { id }),
 
-  test: (params: Pick<ConnectionConfig, "host" | "port" | "database" | "username" | "password" | "db_type">) =>
+  test: (params: ConnParams & { database: string }) =>
     invoke<void>("test_connection", params),
 
-  listDatabases: (params: Pick<ConnectionConfig, "host" | "port" | "username" | "password" | "db_type">) =>
+  listDatabases: (params: ConnParams) =>
     invoke<string[]>("list_databases", params),
+
+  listTables: (params: ConnParams & { database: string }) =>
+    invoke<string[]>("list_tables", params),
+
+  executeQuery: (params: ConnParams & { database: string; query: string }) =>
+    invoke<QueryResult>("execute_query", params),
 }

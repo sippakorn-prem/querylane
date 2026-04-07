@@ -84,33 +84,33 @@
 }
 
 .dark {
-    /* Querylane dark palette — zinc-based, no accent color */
-    --background: oklch(0.13 0 0);          /* #1A1A1D — dark but not black */
-    --foreground: oklch(0.91 0 0);          /* #E4E4E7 — zinc-200 */
-    --card: oklch(0.13 0 0);                /* #18181B — zinc-900, sidebar/panels */
-    --card-foreground: oklch(0.91 0 0);
-    --popover: oklch(0.15 0 0);             /* #1C1C1F — elevated surfaces */
-    --popover-foreground: oklch(0.91 0 0);
-    --primary: oklch(0.91 0 0);             /* #E4E4E7 — primary actions */
-    --primary-foreground: oklch(0.085 0 0);
-    --secondary: oklch(0.20 0 0);           /* #27272A — zinc-800 */
-    --secondary-foreground: oklch(0.91 0 0);
-    --muted: oklch(0.20 0 0);
-    --muted-foreground: oklch(0.47 0 0);    /* #71717A — zinc-500 */
-    --accent: oklch(0.20 0 0);
-    --accent-foreground: oklch(0.91 0 0);
-    --destructive: oklch(0.63 0.22 25);     /* red-500 */
-    --border: oklch(0.20 0 0);              /* #27272A — solid border */
-    --input: oklch(0.20 0 0);
-    --ring: oklch(0.47 0 0);
-    --sidebar: oklch(0.13 0 0);
-    --sidebar-foreground: oklch(0.91 0 0);
-    --sidebar-primary: oklch(0.91 0 0);
-    --sidebar-primary-foreground: oklch(0.085 0 0);
-    --sidebar-accent: oklch(0.20 0 0);
-    --sidebar-accent-foreground: oklch(0.91 0 0);
-    --sidebar-border: oklch(0.20 0 0);
-    --sidebar-ring: oklch(0.47 0 0);
+    /* Querylane dark palette — Light Steel */
+    --background: #212529;           /* darkest — main canvas */
+    --foreground: #F8F9FA;           /* lightest — primary text */
+    --card: #2c3238;                 /* panels, slide-ins, modals */
+    --card-foreground: #F8F9FA;
+    --popover: #343A40;              /* dropdowns, elevated surfaces */
+    --popover-foreground: #F8F9FA;
+    --primary: #CED4DA;              /* primary buttons */
+    --primary-foreground: #212529;
+    --secondary: #343A40;
+    --secondary-foreground: #F8F9FA;
+    --muted: #343A40;                /* hover states, secondary fills */
+    --muted-foreground: #6C757D;     /* labels, placeholders */
+    --accent: #343A40;
+    --accent-foreground: #F8F9FA;
+    --destructive: oklch(0.63 0.22 25);
+    --border: #495057;               /* dividers, card outlines */
+    --input: #343A40;
+    --ring: #ADB5BD;                 /* focus rings */
+    --sidebar: #212529;
+    --sidebar-foreground: #F8F9FA;
+    --sidebar-primary: #CED4DA;
+    --sidebar-primary-foreground: #212529;
+    --sidebar-accent: #343A40;
+    --sidebar-accent-foreground: #F8F9FA;
+    --sidebar-border: #495057;
+    --sidebar-ring: #ADB5BD;
 }
 
 @layer base {

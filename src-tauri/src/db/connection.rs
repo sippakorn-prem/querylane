@@ -1,6 +1,8 @@
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgConnectOptions;
-use sqlx::mysql::MySqlConnectOptions;
+use sqlx::mysql::{MySqlConnectOptions, MySqlConnection};
+use sqlx::postgres::{PgConnectOptions, PgConnection};
+use sqlx::{Column, Connection, Row, TypeInfo};
 use thiserror::Error;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -72,6 +74,74 @@ pub async fn list_databases(config: &ConnectionConfig) -> Result<Vec<String>, Co
     }
 }
 
+pub async fn list_tables(config: &ConnectionConfig, database: &str) -> Result<Vec<String>, ConnectionError> {
+    match config.db_type {
+        DbType::Postgres => list_postgres_tables(config, database).await,
+        DbType::Mysql => list_mysql_tables(config, database).await,
+    }
+}
+
+async fn list_postgres_tables(config: &ConnectionConfig, database: &str) -> Result<Vec<String>, ConnectionError> {
+    let options = PgConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .database(database)
+        .username(&config.username)
+        .password(&config.password);
+
+    let mut conn = PgConnection::connect_with(&options).await.map_err(classify_pg_error)?;
+
+    let tables = sqlx::query_scalar::<_, String>(
+        "SELECT table_name FROM information_schema.tables \
+         WHERE table_schema = 'public' AND table_type = 'BASE TABLE' \
+         ORDER BY table_name",
+    )
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(tables)
+}
+
+async fn list_mysql_tables(config: &ConnectionConfig, database: &str) -> Result<Vec<String>, ConnectionError> {
+    let options = MySqlConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .username(&config.username)
+        .password(&config.password)
+        .database(database);
+
+    let mut conn = MySqlConnection::connect_with(&options).await.map_err(classify_mysql_error)?;
+
+    let tables = sqlx::query_scalar::<_, String>(
+        "SELECT table_name FROM information_schema.tables \
+         WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' \
+         ORDER BY table_name",
+    )
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(tables)
+}
+
+pub async fn execute_query(config: &ConnectionConfig, query: &str) -> Result<QueryResult, ConnectionError> {
+    match config.db_type {
+        DbType::Postgres => execute_postgres_query(config, query).await,
+        DbType::Mysql => execute_mysql_query(config, query).await,
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct QueryResult {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    pub rows_affected: u64,
+    pub duration_ms: u64,
+}
+
 // ── Postgres ──────────────────────────────────────────────────────────────────
 
 async fn test_postgres(config: &ConnectionConfig) -> Result<(), ConnectionError> {
@@ -83,10 +153,10 @@ async fn test_postgres(config: &ConnectionConfig) -> Result<(), ConnectionError>
         .username(&config.username)
         .password(&config.password);
 
-    let pool = sqlx::PgPool::connect_with(options)
+    let conn = PgConnection::connect_with(&options)
         .await
         .map_err(classify_pg_error)?;
-    pool.close().await;
+    conn.close().await.ok();
     Ok(())
 }
 
@@ -98,18 +168,16 @@ async fn list_postgres_databases(config: &ConnectionConfig) -> Result<Vec<String
         .username(&config.username)
         .password(&config.password);
 
-    let pool = sqlx::PgPool::connect_with(options)
-        .await
-        .map_err(classify_pg_error)?;
+    let mut conn = PgConnection::connect_with(&options).await.map_err(classify_pg_error)?;
 
     let dbs = sqlx::query_scalar::<_, String>(
         "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname",
     )
-    .fetch_all(&pool)
+    .fetch_all(&mut conn)
     .await
     .map_err(|e| ConnectionError::Other(e.to_string()))?;
 
-    pool.close().await;
+    conn.close().await.ok();
     Ok(dbs)
 }
 
@@ -141,10 +209,10 @@ async fn test_mysql(config: &ConnectionConfig) -> Result<(), ConnectionError> {
         options = options.database(&config.database);
     }
 
-    let pool = sqlx::MySqlPool::connect_with(options)
+    let conn = MySqlConnection::connect_with(&options)
         .await
         .map_err(classify_mysql_error)?;
-    pool.close().await;
+    conn.close().await.ok();
     Ok(())
 }
 
@@ -155,16 +223,14 @@ async fn list_mysql_databases(config: &ConnectionConfig) -> Result<Vec<String>, 
         .username(&config.username)
         .password(&config.password);
 
-    let pool = sqlx::MySqlPool::connect_with(options)
-        .await
-        .map_err(classify_mysql_error)?;
+    let mut conn = MySqlConnection::connect_with(&options).await.map_err(classify_mysql_error)?;
 
     let dbs = sqlx::query_scalar::<_, String>("SHOW DATABASES")
-        .fetch_all(&pool)
+        .fetch_all(&mut conn)
         .await
         .map_err(|e| ConnectionError::Other(e.to_string()))?;
 
-    pool.close().await;
+    conn.close().await.ok();
     Ok(dbs)
 }
 
@@ -180,5 +246,181 @@ fn classify_mysql_error(err: sqlx::Error) -> ConnectionError {
         ConnectionError::Timeout
     } else {
         ConnectionError::Other(msg)
+    }
+}
+
+// ── Execute query ─────────────────────────────────────────────────────────────
+
+async fn execute_postgres_query(config: &ConnectionConfig, query: &str) -> Result<QueryResult, ConnectionError> {
+    let db = if config.database.is_empty() { "postgres" } else { &config.database };
+    let options = PgConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .database(db)
+        .username(&config.username)
+        .password(&config.password);
+
+    let mut conn = PgConnection::connect_with(&options).await.map_err(classify_pg_error)?;
+    let start = std::time::Instant::now();
+
+    let trimmed = query.trim().to_uppercase();
+    let is_select = trimmed.starts_with("SELECT")
+        || trimmed.starts_with("WITH")
+        || trimmed.starts_with("(SELECT");
+
+    let result = if is_select {
+        let rows = sqlx::query(query)
+            .fetch_all(&mut conn)
+            .await
+            .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        if rows.is_empty() {
+            QueryResult { columns: vec![], rows: vec![], rows_affected: 0, duration_ms }
+        } else {
+            let columns: Vec<String> = rows[0].columns().iter().map(|c| c.name().to_string()).collect();
+            let result_rows: Vec<Vec<serde_json::Value>> = rows
+                .iter()
+                .map(|row| (0..row.columns().len()).map(|i| pg_value_to_json(row, i)).collect())
+                .collect();
+            let count = result_rows.len() as u64;
+            QueryResult { columns, rows: result_rows, rows_affected: count, duration_ms }
+        }
+    } else {
+        let res = sqlx::query(query)
+            .execute(&mut conn)
+            .await
+            .map_err(|e| ConnectionError::Other(e.to_string()))?;
+        let duration_ms = start.elapsed().as_millis() as u64;
+        QueryResult { columns: vec![], rows: vec![], rows_affected: res.rows_affected(), duration_ms }
+    };
+
+    conn.close().await.ok();
+    Ok(result)
+}
+
+async fn execute_mysql_query(config: &ConnectionConfig, query: &str) -> Result<QueryResult, ConnectionError> {
+    let mut options = MySqlConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .username(&config.username)
+        .password(&config.password);
+
+    if !config.database.is_empty() {
+        options = options.database(&config.database);
+    }
+
+    let mut conn = MySqlConnection::connect_with(&options).await.map_err(classify_mysql_error)?;
+    let start = std::time::Instant::now();
+
+    let trimmed = query.trim().to_uppercase();
+    let is_select = trimmed.starts_with("SELECT")
+        || trimmed.starts_with("WITH")
+        || trimmed.starts_with("(SELECT");
+
+    let result = if is_select {
+        let rows = sqlx::query(query)
+            .fetch_all(&mut conn)
+            .await
+            .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        if rows.is_empty() {
+            QueryResult { columns: vec![], rows: vec![], rows_affected: 0, duration_ms }
+        } else {
+            let columns: Vec<String> = rows[0].columns().iter().map(|c| c.name().to_string()).collect();
+            let result_rows: Vec<Vec<serde_json::Value>> = rows
+                .iter()
+                .map(|row| (0..row.columns().len()).map(|i| mysql_value_to_json(row, i)).collect())
+                .collect();
+            let count = result_rows.len() as u64;
+            QueryResult { columns, rows: result_rows, rows_affected: count, duration_ms }
+        }
+    } else {
+        let res = sqlx::query(query)
+            .execute(&mut conn)
+            .await
+            .map_err(|e| ConnectionError::Other(e.to_string()))?;
+        let duration_ms = start.elapsed().as_millis() as u64;
+        QueryResult { columns: vec![], rows: vec![], rows_affected: res.rows_affected(), duration_ms }
+    };
+
+    conn.close().await.ok();
+    Ok(result)
+}
+
+// ── Value serialisation ───────────────────────────────────────────────────────
+
+fn pg_value_to_json(row: &sqlx::postgres::PgRow, i: usize) -> serde_json::Value {
+    let type_name = row.columns()[i].type_info().name();
+    match type_name {
+        "INT2" => row.try_get::<Option<i16>, _>(i)
+            .map(|v| v.map(|n| serde_json::Value::Number(n.into())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "INT4" | "SERIAL" => row.try_get::<Option<i32>, _>(i)
+            .map(|v| v.map(|n| serde_json::Value::Number(n.into())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "INT8" | "BIGSERIAL" => row.try_get::<Option<i64>, _>(i)
+            .map(|v| v.map(|n| serde_json::Value::Number(n.into())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "FLOAT4" => row.try_get::<Option<f32>, _>(i)
+            .map(|v| v.map(|f| serde_json::json!(f)).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "FLOAT8" | "NUMERIC" => row.try_get::<Option<f64>, _>(i)
+            .map(|v| v.map(|f| serde_json::json!(f)).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "BOOL" => row.try_get::<Option<bool>, _>(i)
+            .map(|v| v.map(serde_json::Value::Bool).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "TIMESTAMP" => row.try_get::<Option<NaiveDateTime>, _>(i)
+            .map(|v| v.map(|d| serde_json::Value::String(d.format("%Y-%m-%d %H:%M:%S").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "TIMESTAMPTZ" => row.try_get::<Option<DateTime<Utc>>, _>(i)
+            .map(|v| v.map(|d| serde_json::Value::String(d.format("%Y-%m-%d %H:%M:%S UTC").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "DATE" => row.try_get::<Option<NaiveDate>, _>(i)
+            .map(|v| v.map(|d| serde_json::Value::String(d.format("%Y-%m-%d").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "TIME" | "TIMETZ" => row.try_get::<Option<NaiveTime>, _>(i)
+            .map(|v| v.map(|t| serde_json::Value::String(t.format("%H:%M:%S").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "BYTEA" => serde_json::Value::String("<binary>".to_string()),
+        _ => row.try_get::<Option<String>, _>(i)
+            .map(|v| v.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null))
+            .unwrap_or_else(|_| serde_json::Value::String(format!("<{}>", type_name.to_lowercase()))),
+    }
+}
+
+fn mysql_value_to_json(row: &sqlx::mysql::MySqlRow, i: usize) -> serde_json::Value {
+    let type_name = row.columns()[i].type_info().name();
+    match type_name {
+        "TINYINT" | "SMALLINT" | "INT" | "MEDIUMINT" | "BIGINT"
+        | "TINYINT UNSIGNED" | "SMALLINT UNSIGNED" | "INT UNSIGNED"
+        | "MEDIUMINT UNSIGNED" | "BIGINT UNSIGNED" => {
+            row.try_get::<Option<i64>, _>(i)
+                .map(|v| v.map(|n| serde_json::Value::Number(n.into())).unwrap_or(serde_json::Value::Null))
+                .unwrap_or(serde_json::Value::Null)
+        }
+        "FLOAT" | "DOUBLE" | "DECIMAL" | "NUMERIC" => row.try_get::<Option<f64>, _>(i)
+            .map(|v| v.map(|f| serde_json::json!(f)).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "BOOLEAN" => row.try_get::<Option<bool>, _>(i)
+            .map(|v| v.map(serde_json::Value::Bool).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "DATETIME" | "TIMESTAMP" => row.try_get::<Option<NaiveDateTime>, _>(i)
+            .map(|v| v.map(|d| serde_json::Value::String(d.format("%Y-%m-%d %H:%M:%S").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "DATE" => row.try_get::<Option<NaiveDate>, _>(i)
+            .map(|v| v.map(|d| serde_json::Value::String(d.format("%Y-%m-%d").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "TIME" => row.try_get::<Option<NaiveTime>, _>(i)
+            .map(|v| v.map(|t| serde_json::Value::String(t.format("%H:%M:%S").to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
+        "BLOB" | "MEDIUMBLOB" | "LONGBLOB" | "TINYBLOB" => serde_json::Value::String("<binary>".to_string()),
+        _ => row.try_get::<Option<String>, _>(i)
+            .map(|v| v.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null))
+            .unwrap_or_else(|_| serde_json::Value::String(format!("<{}>", type_name.to_lowercase()))),
     }
 }
