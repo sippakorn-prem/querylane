@@ -6,6 +6,7 @@ use crate::db::connection::{
     test_connection as db_test_connection,
     list_databases as db_list_databases,
     list_tables as db_list_tables,
+    get_schema as db_get_schema,
     execute_query as db_execute_query,
     QueryResult,
 };
@@ -110,6 +111,19 @@ pub async fn list_tables(
 ) -> Result<Vec<String>, String> {
     let config = transient_config(db_type, host, port, username, password, database.clone());
     db_list_tables(&config, &database).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_schema(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    db_type: DbType,
+    database: String,
+) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    let config = transient_config(db_type, host, port, username, password, database.clone());
+    db_get_schema(&config, &database).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]

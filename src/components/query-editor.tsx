@@ -1,9 +1,46 @@
-import { useEffect, useRef, useState } from "react"
-import { Loader2, Play } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ChevronDown, ChevronUp, ChevronsUpDown, Loader2, Play, WrapText } from "lucide-react"
+import { format as formatSql } from "sql-formatter"
+import CodeMirror, { keymap } from "@uiw/react-codemirror"
+import { sql, PostgreSQL, MySQL } from "@codemirror/lang-sql"
+import { createTheme } from "@uiw/codemirror-themes"
+import { tags as t } from "@lezer/highlight"
+import { Compartment, Prec } from "@codemirror/state"
+import { EditorView } from "@codemirror/view"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { connectionsApi, type ConnectionConfig, type QueryResult } from "@/lib/connections"
 import { detectDestructive, type DestructiveWarning } from "@/lib/query-safety"
+
+// ── CodeMirror theme matching Querylane dark palette ──────────────────────────
+const querylaneTheme = createTheme({
+  theme: "dark",
+  settings: {
+    background: "#0d1117",
+    foreground: "#c9d1d9",
+    caret: "#7eb8f7",
+    selection: "#7eb8f72a",
+    selectionMatch: "#7eb8f710",
+    lineHighlight: "#ffffff03",
+    gutterBackground: "#0d1117",
+    gutterForeground: "#3a4048",
+  },
+  styles: [
+    { tag: t.keyword,                color: "#7eb8f7", fontWeight: "500" },
+    { tag: t.operator,               color: "#7eb8f7" },
+    { tag: t.string,                 color: "#98c379" },
+    { tag: t.number,                 color: "#d19a66" },
+    { tag: t.bool,                   color: "#d19a66" },
+    { tag: t.null,                   color: "#868e96", fontStyle: "italic" },
+    { tag: t.comment,                color: "#495057", fontStyle: "italic" },
+    { tag: t.name,                   color: "#F8F9FA" },
+    { tag: t.typeName,               color: "#c678dd" },
+    { tag: t.variableName,           color: "#F8F9FA" },
+    { tag: t.special(t.variableName), color: "#e06c75" },
+    { tag: t.punctuation,            color: "#868e96" },
+    { tag: t.bracket,                color: "#868e96" },
+  ],
+})
 
 interface Props {
   connection: ConnectionConfig
@@ -14,17 +51,82 @@ interface Props {
 
 type RunState = "idle" | "running" | "done" | "error"
 
+// Strips any existing ORDER BY and inserts a new one before LIMIT/OFFSET or at end.
+function injectOrderBy(query: string, col: string, dir: "asc" | "desc"): string {
+  const orderBy = `ORDER BY "${col}" ${dir.toUpperCase()}`
+  // Remove existing ORDER BY (stops at LIMIT, OFFSET, semicolon, or end)
+  const stripped = query
+    .replace(/\s+ORDER\s+BY\s+[\s\S]+?(?=\s+LIMIT\b|\s+OFFSET\b|;?\s*$)/i, "")
+    .trimEnd()
+    .replace(/;?\s*$/, "")
+
+  const limitMatch = stripped.search(/\b(LIMIT|OFFSET)\b/i)
+  if (limitMatch !== -1) {
+    return stripped.slice(0, limitMatch).trimEnd() + ` ${orderBy} ` + stripped.slice(limitMatch)
+  }
+  return stripped + ` ${orderBy}`
+}
+
 export function QueryEditor({ connection, activeDatabase, query, onQueryChange }: Props) {
   const [runState, setRunState] = useState<RunState>("idle")
   const [result, setResult] = useState<QueryResult | null>(null)
   const [error, setError] = useState("")
   const [warning, setWarning] = useState<DestructiveWarning | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const dialect = connection.db_type === "mysql" ? "mysql" : "postgresql"
+  const sqlDialect = connection.db_type === "mysql" ? MySQL : PostgreSQL
 
-  // Focus editor on mount
-  useEffect(() => { textareaRef.current?.focus() }, [])
+  // Compartment lets us reconfigure the sql() extension after the editor mounts
+  const sqlCompartment = useRef(new Compartment())
+  const editorViewRef = useRef<EditorView | null>(null)
 
-  async function executeNow() {
+  // Fetch real schema whenever the active database changes, then push into editor
+  useEffect(() => {
+    if (!activeDatabase) return
+    connectionsApi.getSchema({
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
+      password: connection.password,
+      db_type: connection.db_type,
+      database: activeDatabase,
+    }).then((schema) => {
+      editorViewRef.current?.dispatch({
+        effects: sqlCompartment.current.reconfigure(
+          sql({ dialect: sqlDialect, schema, upperCaseKeywords: true })
+        ),
+      })
+    }).catch(() => {})
+  }, [activeDatabase, connection.host, connection.port, connection.username, connection.db_type, sqlDialect])
+
+  function formatQuery() {
+    if (!query.trim()) return
+    try {
+      const formatted = formatSql(query, {
+        language: dialect,
+        tabWidth: 2,
+        keywordCase: "upper",
+        identifierCase: "preserve",
+        dataTypeCase: "upper",
+        functionCase: "upper",
+      })
+      onQueryChange(formatted)
+    } catch {
+      // leave as-is if formatter chokes on it
+    }
+  }
+
+  // Reset sort when query changes manually (user edits the editor)
+  const prevQueryRef = useRef(query)
+  useEffect(() => {
+    if (query !== prevQueryRef.current) {
+      setSortCol(null)
+      prevQueryRef.current = query
+    }
+  }, [query])
+
+  async function executeNow(q = query) {
     setRunState("running")
     setResult(null)
     setError("")
@@ -37,7 +139,7 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
         password: connection.password,
         db_type: connection.db_type,
         database: activeDatabase || connection.database,
-        query,
+        query: q,
       })
       setResult(res)
       setRunState("done")
@@ -49,22 +151,35 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
 
   function runQuery() {
     if (!query.trim() || runState === "running") return
-
     const w = detectDestructive(query)
-    if (w) {
-      setWarning(w)
-      return
-    }
-
+    if (w) { setWarning(w); return }
     executeNow()
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.metaKey && e.key === "Enter") {
-      e.preventDefault()
-      runQuery()
-    }
+  function handleSort(col: string) {
+    if (runState === "running") return
+    const nextDir = sortCol === col && sortDir === "asc" ? "desc" : "asc"
+    setSortCol(col)
+    setSortDir(nextDir)
+    const newQuery = injectOrderBy(query, col, nextDir)
+    prevQueryRef.current = newQuery  // don't reset sort from the echo
+    onQueryChange(newQuery)
+    executeNow(newQuery)
   }
+
+  // Stable refs so keymap callbacks always call the latest function
+  const runQueryRef = useRef(runQuery)
+  const formatQueryRef = useRef(formatQuery)
+  useEffect(() => { runQueryRef.current = runQuery })
+  useEffect(() => { formatQueryRef.current = formatQuery })
+
+  // Keymaps are created once — refs ensure they're never stale
+  const editorKeymaps = useMemo(() => Prec.highest(
+    keymap.of([
+      { key: "Mod-Enter", run: () => { runQueryRef.current(); return true } },
+      { key: "Mod-Shift-f", run: () => { formatQueryRef.current(); return true } },
+    ])
+  ), [])
 
   const statusText = (() => {
     if (runState === "running") return "Running…"
@@ -80,14 +195,29 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Editor */}
       <div className="flex flex-col border-b border-border" style={{ height: "35%" }}>
-        <textarea
-          ref={textareaRef}
+        <CodeMirror
           value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
+          onChange={onQueryChange}
+          onCreateEditor={(view) => { editorViewRef.current = view }}
+          theme={querylaneTheme}
+          extensions={[
+            sqlCompartment.current.of(sql({ dialect: sqlDialect, upperCaseKeywords: true })),
+            editorKeymaps,
+          ]}
+          autoFocus
           placeholder="SELECT * FROM …"
-          className="flex-1 resize-none bg-background px-4 py-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+          basicSetup={{
+            lineNumbers: false,
+            foldGutter: false,
+            highlightActiveLine: true,
+            highlightSelectionMatches: true,
+            bracketMatching: true,
+            closeBrackets: true,
+            autocompletion: true,
+            indentOnInput: true,
+          }}
+          className="flex-1 overflow-auto text-sm"
+          style={{ fontFamily: "var(--font-mono, monospace)" }}
         />
 
         {/* Toolbar */}
@@ -105,6 +235,17 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
             Run
           </Button>
           <span className="text-xs text-muted-foreground">⌘ Enter</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={formatQuery}
+            disabled={!query.trim()}
+            title="Format SQL (⌘⇧F)"
+            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <WrapText className="size-3" />
+            Format
+          </Button>
           {statusText && (
             <span className="ml-auto text-xs text-muted-foreground">{statusText}</span>
           )}
@@ -128,7 +269,13 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
         )}
 
         {result && result.columns.length > 0 && (
-          <ResultsTable columns={result.columns} rows={result.rows} />
+          <ResultsTable
+            columns={result.columns}
+            rows={result.rows}
+            sortCol={sortCol}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
         )}
 
         {runState === "idle" && !result && (
@@ -153,46 +300,94 @@ export function QueryEditor({ connection, activeDatabase, query, onQueryChange }
 
 // ── Results table ─────────────────────────────────────────────────────────────
 
+const MAX_CELL_LEN = 120
+
 interface ResultsTableProps {
   columns: string[]
   rows: (string | number | boolean | null)[][]
+  sortCol: string | null
+  sortDir: "asc" | "desc"
+  onSort: (col: string) => void
 }
 
-function ResultsTable({ columns, rows }: ResultsTableProps) {
+function ResultsTable({ columns, rows, sortCol, sortDir, onSort }: ResultsTableProps) {
+  const [copiedCell, setCopiedCell] = useState<string | null>(null)
+
+  function copyCell(value: string | number | boolean | null, key: string) {
+    navigator.clipboard.writeText(value === null ? "" : String(value))
+    setCopiedCell(key)
+    setTimeout(() => setCopiedCell(null), 800)
+  }
+
   return (
     <div className="flex-1 overflow-auto">
-      <table className="w-full text-sm">
+      <table className="text-sm border-collapse">
         <thead className="sticky top-0 z-10 bg-card">
           <tr className="border-b border-border">
-            {columns.map((col) => (
-              <th
-                key={col}
-                className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap"
-              >
-                {col}
-              </th>
-            ))}
+            {/* Row # */}
+            <th className="sticky left-0 z-20 bg-card w-10 px-3 py-2 text-right text-[11px] font-medium text-muted-foreground/40 border-r border-border select-none">
+              #
+            </th>
+            {columns.map((col) => {
+              const active = sortCol === col
+              const Icon = active ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown
+              return (
+                <th
+                  key={col}
+                  onClick={() => onSort(col)}
+                  className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap cursor-pointer hover:text-foreground hover:bg-muted/20 select-none transition-colors"
+                >
+                  <span className="flex items-center gap-1">
+                    {col}
+                    <Icon className={`size-3 shrink-0 ${active ? "text-foreground" : "text-muted-foreground/30"}`} />
+                  </span>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-              {row.map((cell, ci) => (
-                <td
-                  key={ci}
-                  className={`px-4 py-1.5 font-mono text-xs whitespace-nowrap ${
-                    cell === null
-                      ? "text-muted-foreground/50 italic"
-                      : typeof cell === "number"
-                        ? "text-right text-blue-400"
-                        : typeof cell === "boolean"
-                          ? cell ? "text-green-400" : "text-red-400"
-                          : "text-foreground"
-                  }`}
-                >
-                  {cell === null ? "NULL" : String(cell)}
-                </td>
-              ))}
+            <tr
+              key={ri}
+              className={`border-b border-border/40 hover:bg-muted/25 transition-colors ${
+                ri % 2 === 1 ? "bg-muted/[0.04]" : ""
+              }`}
+            >
+              {/* Row number */}
+              <td className="sticky left-0 bg-[inherit] px-3 py-1.5 text-right font-mono text-[11px] text-muted-foreground/30 border-r border-border/40 select-none tabular-nums">
+                {ri + 1}
+              </td>
+              {row.map((cell, ci) => {
+                const key = `${ri}-${ci}`
+                const isCopied = copiedCell === key
+                const isNum = typeof cell === "number"
+                const isBool = typeof cell === "boolean"
+                const isNull = cell === null
+                const raw = isNull ? "" : String(cell)
+                const display = raw.length > MAX_CELL_LEN ? raw.slice(0, MAX_CELL_LEN) + "…" : raw
+
+                return (
+                  <td
+                    key={ci}
+                    onClick={() => copyCell(cell, key)}
+                    title={!isNull && raw.length > MAX_CELL_LEN ? raw : undefined}
+                    className={[
+                      "px-3 py-1.5 font-mono text-xs whitespace-nowrap cursor-pointer transition-colors",
+                      isCopied ? "bg-blue-500/15 text-blue-300" :
+                      isNull ? "text-muted-foreground/25" :
+                      isNum ? "text-right text-[#7eb8f7]" :
+                      isBool ? (cell ? "text-emerald-400" : "text-red-400") :
+                      "text-foreground",
+                    ].join(" ")}
+                  >
+                    {isNull
+                      ? <span className="text-[10px] italic tracking-wide">null</span>
+                      : display
+                    }
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>

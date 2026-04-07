@@ -46,6 +46,9 @@ export const connectionsApi = {
   listTables: (params: ConnParams & { database: string }) =>
     invoke<string[]>("list_tables", params),
 
+  getSchema: (params: ConnParams & { database: string }) =>
+    invoke<Record<string, string[]>>("get_schema", params),
+
   executeQuery: (params: ConnParams & { database: string; query: string }) =>
     invoke<QueryResult>("execute_query", params),
 }

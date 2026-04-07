@@ -127,6 +127,69 @@ async fn list_mysql_tables(config: &ConnectionConfig, database: &str) -> Result<
     Ok(tables)
 }
 
+pub async fn get_schema(config: &ConnectionConfig, database: &str) -> Result<std::collections::HashMap<String, Vec<String>>, ConnectionError> {
+    match config.db_type {
+        DbType::Postgres => get_postgres_schema(config, database).await,
+        DbType::Mysql => get_mysql_schema(config, database).await,
+    }
+}
+
+async fn get_postgres_schema(config: &ConnectionConfig, database: &str) -> Result<std::collections::HashMap<String, Vec<String>>, ConnectionError> {
+    let options = PgConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .database(database)
+        .username(&config.username)
+        .password(&config.password);
+
+    let mut conn = PgConnection::connect_with(&options).await.map_err(classify_pg_error)?;
+
+    let rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT table_name, column_name \
+         FROM information_schema.columns \
+         WHERE table_schema = 'public' \
+         ORDER BY table_name, ordinal_position",
+    )
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(build_schema_map(rows))
+}
+
+async fn get_mysql_schema(config: &ConnectionConfig, database: &str) -> Result<std::collections::HashMap<String, Vec<String>>, ConnectionError> {
+    let options = MySqlConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .username(&config.username)
+        .password(&config.password)
+        .database(database);
+
+    let mut conn = MySqlConnection::connect_with(&options).await.map_err(classify_mysql_error)?;
+
+    let rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT table_name, column_name \
+         FROM information_schema.columns \
+         WHERE table_schema = DATABASE() \
+         ORDER BY table_name, ordinal_position",
+    )
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(build_schema_map(rows))
+}
+
+fn build_schema_map(rows: Vec<(String, String)>) -> std::collections::HashMap<String, Vec<String>> {
+    let mut map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for (table, column) in rows {
+        map.entry(table).or_default().push(column);
+    }
+    map
+}
+
 pub async fn execute_query(config: &ConnectionConfig, query: &str) -> Result<QueryResult, ConnectionError> {
     match config.db_type {
         DbType::Postgres => execute_postgres_query(config, query).await,

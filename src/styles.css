@@ -84,33 +84,33 @@
 }
 
 .dark {
-    /* Querylane dark palette — Light Steel */
-    --background: #212529;           /* darkest — main canvas */
-    --foreground: #F8F9FA;           /* lightest — primary text */
-    --card: #2c3238;                 /* panels, slide-ins, modals */
-    --card-foreground: #F8F9FA;
-    --popover: #343A40;              /* dropdowns, elevated surfaces */
-    --popover-foreground: #F8F9FA;
-    --primary: #CED4DA;              /* primary buttons */
-    --primary-foreground: #212529;
-    --secondary: #343A40;
-    --secondary-foreground: #F8F9FA;
-    --muted: #343A40;                /* hover states, secondary fills */
-    --muted-foreground: #6C757D;     /* labels, placeholders */
-    --accent: #343A40;
-    --accent-foreground: #F8F9FA;
+    /* Querylane dark palette — Deep */
+    --background: #0d1117;           /* darkest — main canvas */
+    --foreground: #e6edf3;           /* primary text */
+    --card: #161b22;                 /* panels, slide-ins, modals */
+    --card-foreground: #e6edf3;
+    --popover: #1c2128;              /* dropdowns, elevated surfaces */
+    --popover-foreground: #e6edf3;
+    --primary: #c9d1d9;              /* primary buttons */
+    --primary-foreground: #0d1117;
+    --secondary: #1c2128;
+    --secondary-foreground: #e6edf3;
+    --muted: #1c2128;                /* hover states, secondary fills */
+    --muted-foreground: #7d8590;     /* labels, placeholders */
+    --accent: #1c2128;
+    --accent-foreground: #e6edf3;
     --destructive: oklch(0.63 0.22 25);
-    --border: #495057;               /* dividers, card outlines */
-    --input: #343A40;
-    --ring: #ADB5BD;                 /* focus rings */
-    --sidebar: #212529;
-    --sidebar-foreground: #F8F9FA;
-    --sidebar-primary: #CED4DA;
-    --sidebar-primary-foreground: #212529;
-    --sidebar-accent: #343A40;
-    --sidebar-accent-foreground: #F8F9FA;
-    --sidebar-border: #495057;
-    --sidebar-ring: #ADB5BD;
+    --border: #21262d;               /* dividers, card outlines */
+    --input: #1c2128;
+    --ring: #8b949e;                 /* focus rings */
+    --sidebar: #0d1117;
+    --sidebar-foreground: #e6edf3;
+    --sidebar-primary: #c9d1d9;
+    --sidebar-primary-foreground: #0d1117;
+    --sidebar-accent: #1c2128;
+    --sidebar-accent-foreground: #e6edf3;
+    --sidebar-border: #21262d;
+    --sidebar-ring: #8b949e;
 }
 
 @layer base {
@@ -123,4 +123,109 @@
   html {
     @apply font-sans;
     }
+}
+
+/* CodeMirror — fill editor container, match app font */
+.cm-editor {
+  height: 100%;
+  font-size: 13px;
+}
+.cm-editor .cm-scroller {
+  font-family: "GeistMono Nerd Font", "Geist Mono", ui-monospace, monospace;
+  line-height: 1.6;
+  padding: 12px 16px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-editor .cm-placeholder {
+  color: rgba(248, 249, 250, 0.25);
+}
+/* CodeMirror autocomplete popup */
+.cm-tooltip,
+.cm-tooltip-autocomplete {
+  z-index: 9999 !important;
+  background: #13151a !important;
+  border: 1px solid #2e333d !important;
+  border-radius: 8px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04) !important;
+  padding: 4px !important;
+  overflow: hidden;
+}
+
+.cm-tooltip-autocomplete ul {
+  font-family: "GeistMono Nerd Font", "Geist Mono", ui-monospace, monospace !important;
+  font-size: 12.5px !important;
+  max-height: 240px !important;
+}
+
+.cm-tooltip-autocomplete ul li {
+  display: flex !important;
+  align-items: center !important;
+  padding: 5px 10px 5px 8px !important;
+  border-radius: 5px !important;
+  gap: 8px !important;
+  color: #c9d1d9 !important;
+  line-height: 1.4 !important;
+  transition: background 0.1s;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] {
+  background: #1e3a5f !important;
+  color: #e8f0fe !important;
+}
+
+.cm-tooltip-autocomplete ul li:hover:not([aria-selected]) {
+  background: #1e2530 !important;
+}
+
+/* Match highlight */
+.cm-completionMatchedText {
+  color: #7eb8f7 !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+
+/* Right-side type label */
+.cm-completionDetail {
+  margin-left: auto !important;
+  font-size: 10.5px !important;
+  color: #495057 !important;
+  font-style: normal !important;
+  padding-left: 12px;
+}
+
+/* Icon column */
+.cm-completionIcon {
+  font-size: 11px !important;
+  width: 16px !important;
+  opacity: 0.5;
+}
+
+/* Scrollbar inside popup */
+.cm-tooltip-autocomplete ul::-webkit-scrollbar {
+  width: 4px;
+}
+.cm-tooltip-autocomplete ul::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cm-tooltip-autocomplete ul::-webkit-scrollbar-thumb {
+  background: #2e333d;
+  border-radius: 4px;
+}
+
+/* Active line highlight in editor */
+.cm-editor .cm-activeLine {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.cm-editor .cm-activeLineGutter {
+  background: transparent !important;
+}
+
+/* Selection */
+.cm-editor .cm-selectionBackground {
+  background: rgba(126, 184, 247, 0.15) !important;
+}
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: rgba(126, 184, 247, 0.18) !important;
 }
