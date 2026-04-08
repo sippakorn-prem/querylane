@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "querylane",
+  "productName": "Querylane",
   "version": "0.1.0",
   "identifier": "com.sippakorn-prem.querylane",
   "build": {
@@ -26,7 +26,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCRThGMkU5QzZGMTREODEKUldTQlRmSEc2ZkxvcS8zMElSbHkvSWVFVWNVRkp4MDdyMzh4RW9pVndIVXhpWFJoTUlFRGZvRVIK",
       "endpoints": [
         "https://github.com/PREMio/querylane/releases/latest/download/latest.json"
       ]
@@ -41,6 +41,10 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null
+    }
   }
 }
