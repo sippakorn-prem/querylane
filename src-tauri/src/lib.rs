@@ -3,7 +3,7 @@ mod db;
 
 use commands::connection::{
     create_connection, delete_connection, execute_query, get_connections, get_schema,
-    list_databases, list_tables, test_connection, update_connection,
+    list_columns, list_databases, list_tables, test_connection, update_connection,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,6 +20,7 @@ pub fn run() {
             test_connection,
             list_databases,
             list_tables,
+            list_columns,
             get_schema,
             execute_query,
         ])

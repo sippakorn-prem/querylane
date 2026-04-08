@@ -15,6 +15,11 @@ export interface ConnectionConfig {
   environment: Environment
 }
 
+export interface ColumnInfo {
+  name: string
+  data_type: string
+}
+
 export interface QueryResult {
   columns: string[]
   rows: (string | number | boolean | null)[][]
@@ -45,6 +50,9 @@ export const connectionsApi = {
 
   listTables: (params: ConnParams & { database: string }) =>
     invoke<string[]>("list_tables", params),
+
+  listColumns: (params: ConnParams & { database: string; table: string }) =>
+    invoke<ColumnInfo[]>("list_columns", params),
 
   getSchema: (params: ConnParams & { database: string }) =>
     invoke<Record<string, string[]>>("get_schema", params),

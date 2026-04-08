@@ -127,6 +127,69 @@ async fn list_mysql_tables(config: &ConnectionConfig, database: &str) -> Result<
     Ok(tables)
 }
 
+#[derive(Debug, Serialize)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub data_type: String,
+}
+
+pub async fn list_columns(config: &ConnectionConfig, database: &str, table: &str) -> Result<Vec<ColumnInfo>, ConnectionError> {
+    match config.db_type {
+        DbType::Postgres => list_postgres_columns(config, database, table).await,
+        DbType::Mysql => list_mysql_columns(config, database, table).await,
+    }
+}
+
+async fn list_postgres_columns(config: &ConnectionConfig, database: &str, table: &str) -> Result<Vec<ColumnInfo>, ConnectionError> {
+    let options = PgConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .database(database)
+        .username(&config.username)
+        .password(&config.password);
+
+    let mut conn = PgConnection::connect_with(&options).await.map_err(classify_pg_error)?;
+
+    let rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT column_name, data_type \
+         FROM information_schema.columns \
+         WHERE table_schema = 'public' AND table_name = $1 \
+         ORDER BY ordinal_position",
+    )
+    .bind(table)
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(rows.into_iter().map(|(name, data_type)| ColumnInfo { name, data_type }).collect())
+}
+
+async fn list_mysql_columns(config: &ConnectionConfig, database: &str, table: &str) -> Result<Vec<ColumnInfo>, ConnectionError> {
+    let options = MySqlConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .username(&config.username)
+        .password(&config.password)
+        .database(database);
+
+    let mut conn = MySqlConnection::connect_with(&options).await.map_err(classify_mysql_error)?;
+
+    let rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT column_name, data_type \
+         FROM information_schema.columns \
+         WHERE table_schema = DATABASE() AND table_name = ? \
+         ORDER BY ordinal_position",
+    )
+    .bind(table)
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| ConnectionError::Other(e.to_string()))?;
+
+    conn.close().await.ok();
+    Ok(rows.into_iter().map(|(name, data_type)| ColumnInfo { name, data_type }).collect())
+}
+
 pub async fn get_schema(config: &ConnectionConfig, database: &str) -> Result<std::collections::HashMap<String, Vec<String>>, ConnectionError> {
     match config.db_type {
         DbType::Postgres => get_postgres_schema(config, database).await,
