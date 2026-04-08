@@ -1,8 +1,11 @@
-import { X } from "lucide-react"
+import { useState } from "react"
+import { Check, Loader2, X } from "lucide-react"
 import { useSettingsStore } from "@/store/settings"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import type { Theme } from "@/store/settings"
+import { check as checkForUpdate } from "@tauri-apps/plugin-updater"
+import { relaunch } from "@tauri-apps/plugin-process"
 
 interface SettingsModalProps {
   onClose: () => void
@@ -67,6 +70,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+type UpdateStatus = "idle" | "checking" | "available" | "uptodate" | "error"
+
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const {
     theme, setTheme,
@@ -75,6 +80,26 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     confirmOnTruncate, setConfirmOnTruncate,
     confirmOnUpdateWithoutWhere, setConfirmOnUpdateWithoutWhere,
   } = useSettingsStore()
+
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle")
+  const [updateVersion, setUpdateVersion] = useState("")
+
+  async function handleCheckForUpdates() {
+    setUpdateStatus("checking")
+    try {
+      const update = await checkForUpdate()
+      if (update?.available) {
+        setUpdateVersion(update.version ?? "")
+        setUpdateStatus("available")
+        await update.downloadAndInstall()
+        await relaunch()
+      } else {
+        setUpdateStatus("uptodate")
+      }
+    } catch {
+      setUpdateStatus("error")
+    }
+  }
 
   return (
     <div
@@ -130,8 +155,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
         </div>
 
-        <div className="border-t border-border px-5 py-3">
-          <p className="text-xs text-muted-foreground">Querylane v0.1.0</p>
+        <div className="flex items-center justify-between border-t border-border px-5 py-3">
+          <p className="text-xs text-muted-foreground">
+            {updateStatus === "uptodate" && <span className="text-emerald-400 flex items-center gap-1"><Check className="size-3" /> Up to date</span>}
+            {updateStatus === "available" && <span className="text-primary">Downloading {updateVersion}…</span>}
+            {updateStatus === "error" && <span className="text-red-400">Update check failed</span>}
+            {(updateStatus === "idle" || updateStatus === "checking") && "Querylane v0.1.0"}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={updateStatus === "checking" || updateStatus === "available"}
+            onClick={handleCheckForUpdates}
+            className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            {updateStatus === "checking"
+              ? <><Loader2 className="size-3 animate-spin" /> Checking…</>
+              : "Check for updates"
+            }
+          </Button>
         </div>
       </div>
     </div>

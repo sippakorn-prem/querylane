@@ -3,40 +3,11 @@ import { X, Loader2, Database, ChevronDown, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { connectionsApi, type ConnectionConfig, type DbType, type Environment } from "@/lib/connections"
 import { useConnectionsStore } from "@/store/connections"
+import { PostgresIcon, MySQLIcon } from "@/components/db-icons"
 
 interface ConnectionPanelProps {
   editing?: ConnectionConfig
   onClose: () => void
-}
-
-// ── DB type icons ─────────────────────────────────────────────────────────────
-
-function PostgresIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="16" cy="10" rx="9" ry="9" fill="#336791" />
-      <ellipse cx="22" cy="8" rx="3" ry="4.5" fill="#336791" stroke="#fff" strokeWidth="1" />
-      <path d="M7 10 C7 10 6 22 10 25 C12 27 14 27 16 26 C18 27 20 27 22 25 C26 22 25 10 25 10" fill="#336791" />
-      <ellipse cx="16" cy="10" rx="8" ry="8" fill="#4a90d9" />
-      <ellipse cx="22" cy="8" rx="2.5" ry="3.5" fill="#4a90d9" stroke="#336791" strokeWidth="0.8" />
-      <path d="M8 18 C8 18 7.5 26 10.5 28 C12.5 29.5 15 29 16 28.5 C17 29 19.5 29.5 21.5 28 C24.5 26 24 18 24 18" fill="#4a90d9" stroke="#336791" strokeWidth="0.8" />
-      <path d="M13 13 Q16 16 19 13" stroke="#336791" strokeWidth="1" fill="none" strokeLinecap="round" />
-      <circle cx="13" cy="11" r="1.2" fill="#336791" />
-      <circle cx="19" cy="11" r="1.2" fill="#336791" />
-    </svg>
-  )
-}
-
-function MySQLIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 20 C4 20 6 8 16 8 C26 8 28 20 28 20" stroke="#e48c00" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <path d="M16 8 C16 8 20 4 26 6 C28 7 29 9 28 11 C27 9 25 8 23 9 C21 10 20 12 20 14" stroke="#00758f" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <ellipse cx="16" cy="22" rx="10" ry="6" fill="#e48c00" />
-      <ellipse cx="16" cy="21" rx="9" ry="5" fill="#f5a623" />
-      <text x="16" y="23.5" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#a05a00" fontFamily="sans-serif">SQL</text>
-    </svg>
-  )
 }
 
 const DB_TYPES: { label: string; value: DbType; defaultPort: number; description: string }[] = [

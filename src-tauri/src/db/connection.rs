@@ -449,6 +449,9 @@ fn pg_value_to_json(row: &sqlx::postgres::PgRow, i: usize) -> serde_json::Value 
         "TIME" | "TIMETZ" => row.try_get::<Option<NaiveTime>, _>(i)
             .map(|v| v.map(|t| serde_json::Value::String(t.format("%H:%M:%S").to_string())).unwrap_or(serde_json::Value::Null))
             .unwrap_or(serde_json::Value::Null),
+        "UUID" => row.try_get::<Option<uuid::Uuid>, _>(i)
+            .map(|v| v.map(|u| serde_json::Value::String(u.to_string())).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null),
         "BYTEA" => serde_json::Value::String("<binary>".to_string()),
         _ => row.try_get::<Option<String>, _>(i)
             .map(|v| v.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null))

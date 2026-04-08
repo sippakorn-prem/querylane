@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Plus, MoreHorizontal, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DbIcon } from "@/components/db-icons"
 import type { ConnectionConfig, Environment } from "@/lib/connections"
 
 interface ConnectionListProps {
@@ -29,15 +30,6 @@ const ENV_LABEL: Record<Environment, string> = {
   prod: "prod",
 }
 
-const DB_BADGE: Record<string, string> = {
-  postgres: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  mysql: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-}
-
-const DB_LABEL: Record<string, string> = {
-  postgres: "PG",
-  mysql: "MY",
-}
 
 export function ConnectionList({ connections, onAdd, onEdit, onDelete, onConnect }: ConnectionListProps) {
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
@@ -105,10 +97,8 @@ export function ConnectionList({ connections, onAdd, onEdit, onDelete, onConnect
                     style={{ animationDelay: `${index * 30}ms`, animationFillMode: "both" }}
                     onClick={() => onConnect(conn)}
                   >
-                    {/* DB type badge */}
-                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-wide ${DB_BADGE[conn.db_type] ?? "bg-muted text-muted-foreground"}`}>
-                      {DB_LABEL[conn.db_type] ?? conn.db_type.toUpperCase().slice(0, 2)}
-                    </span>
+                    {/* DB type icon */}
+                    <DbIcon dbType={conn.db_type} className="size-7 shrink-0" />
 
                     {/* Name + host */}
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
