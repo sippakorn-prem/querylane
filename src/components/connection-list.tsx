@@ -12,12 +12,6 @@ interface ConnectionListProps {
   onConnect: (connection: ConnectionConfig) => void
 }
 
-const ENV_DOT: Record<Environment, string> = {
-  dev: "bg-green-500",
-  staging: "bg-yellow-500",
-  prod: "bg-red-500",
-}
-
 const ENV_TEXT: Record<Environment, string> = {
   dev: "text-green-600 dark:text-green-500",
   staging: "text-amber-600 dark:text-yellow-500",
