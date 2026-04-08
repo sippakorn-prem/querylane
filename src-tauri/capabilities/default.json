@@ -9,6 +9,6 @@
     "core:webview:allow-set-webview-zoom",
     "opener:default",
     "updater:default",
-    "process:allow-relaunch"
+    "process:default"
   ]
 }
