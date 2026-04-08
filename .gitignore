@@ -1,6 +1,7 @@
 # Private — never commit
 CLAUDE.md
 .claude/
+RELEASE.md
 
 # Logs
 logs
